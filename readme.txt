@@ -32,6 +32,20 @@ UPDATE HISTORY
                         add EKF state feedback guard: updates main filter only after
                           full validation of final resolution step
 
+2026/09/09  HYFIX fork  add RTCM3 MSM1/MSM2/MSM3 decoder support:
+                        add decode_msm1/2/3 (compact pseudorange, compact
+                          phaserange, and compact pseudorange+phaserange) in
+                          rtcm3.c, matching the encoder-side support that
+                          already existed in rtcm3e.c
+                        wire message numbers x071-x073 (GPS/GLONASS/Galileo/
+                          SBAS/QZSS/BeiDou/NavIC) to the new decoders; these
+                          were previously routed to an "unsupported" stub
+                        note: MSM1-3 satellite data carries only the 10-bit
+                          modulo-1ms rough range (no 8-bit integer-ms field),
+                          so decoded ranges are correct only modulo ~299792m
+                          unless combined with a paired MSM4-7 message, per
+                          the RTCM MSM1-3 message design
+
 2014/09/07  2.4.3 b1  add 3-panel and veritical-panel modes for RTKNAVI
                       add sky image overlay to skyplot for RTKPLOT
                       fix invalid identification of obs type "C2" (#113)
