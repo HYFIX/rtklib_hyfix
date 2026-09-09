@@ -32,6 +32,56 @@ UPDATE HISTORY
                         add EKF state feedback guard: updates main filter only after
                           full validation of final resolution step
 
+2026/08/10  HYFIX fork  perf: optimize ROTI (Rate of TEC Index) calculation
+                          in streamsvr.c using Welford's online variance
+                          algorithm; replaces the per-satellite sliding
+                          window buffer with O(1) running statistics,
+                          cutting ROTI memory use by ~99% and per-epoch
+                          processing to O(1) instead of O(window size)
+
+2026/08/31  HYFIX fork  fix: BDS SSR orbit/clock corrections never match
+                          broadcast ephemeris:
+                        satpos_ssr() compared eph->iode (broadcast AODE, 5
+                          bits) directly against ssr->iode for every
+                          constellation uniformly, but for BDS that SSR
+                          field is not the broadcast IODE -- it's a
+                          toe-modulo-derived value per the RTCM3 SSR spec,
+                          with the real matching key (iodcrc, a 24-bit
+                          ephemeris CRC) decoded by rtcm3.c but never applied
+                          anywhere in this file; the mismatch means the
+                          exact-IODE match essentially never succeeds, so
+                          BDS satellites silently never benefit from SSR
+                          corrections regardless of freshness, degrading
+                          silently to broadcast-only accuracy for the whole
+                          constellation
+                        until iodcrc-based matching is implemented, fall
+                          back to seleph()'s own nearest-toe selection for
+                          BDS (iode=-1), the same "no reliable exact IODE"
+                          treatment SBAS already gets unconditionally via
+                          selseph()
+
+2026/08/31  HYFIX fork  fix: BDS SSR field-width corruption and missing RTCM
+                          1265-1270 phase-bias dispatch:
+                        decode_ssr1()/decode_ssr4() used the SBAS field
+                          layout (ni=10/nj=24) for BDS too, over-consuming 16
+                          bits per satellite and shifting every subsequent
+                          field -- corrupting the orbit/clock corrections
+                          themselves, not just IODE; BDS's real layout is
+                          DF470 (10-bit toe modulo) + DF471 (8-bit IOD), no
+                          IODCRC (that's SBAS-only, DF469); fixed to
+                          ni=10/nj=8, with the two fields swapped after
+                          reading so ssr.iode ends up holding the real IOD
+                          (verified against BNC 2.13.6 clock_orbit_rtcm.cpp
+                          T_BDS_TOEMOD/T_BDS_IOD bit definitions)
+                        add the missing case dispatch for RTCM message types
+                          1265-1270 (SSR phase bias, GPS/GLONASS/Galileo/
+                          QZSS/SBAS/BDS) in decode_rtcm3() -- decode_ssr7()
+                          itself was present and complete but unreachable
+                          from an actual RTCM3 SSR stream, only from
+                          IGS-SSR (4076) subtypes; numbering per BNC 2.13.6
+                          clock_orbit_rtcm.h (PBTYPE_BASE=1265, then
+                          GPS/GLO/GAL/QZS/SBAS/BDS in order)
+
 2026/09/09  HYFIX fork  add RTCM3 MSM1/MSM2/MSM3 decoder support:
                         add decode_msm1/2/3 (compact pseudorange, compact
                           phaserange, and compact pseudorange+phaserange) in
